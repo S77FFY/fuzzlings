@@ -4,21 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="app-repo" content="fuzzlings">
-<meta name="app-version" content="1.0.10">
+<meta name="app-version" content="1.0.11">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#ffffff">
 <title>Fuzzlings</title>
 <style>
 html,body{margin:0;height:100%;background:#fff;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
-canvas{display:block;position:fixed;left:0;top:0;touch-action:none;background:#fff}
+canvas{display:block;position:fixed;left:0;top:0;width:100vw;height:100vh;height:100dvh;touch-action:none;background:#fff}
+#sa{position:fixed;top:0;left:0;width:0;height:0;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none}
 </style>
 </head>
 <body>
+<div id="sa"></div>
 <canvas id="c"></canvas>
 <script>
 (()=>{
 'use strict';
-const VERSION='1.0.10';
+const VERSION='1.0.11';
 const cv=document.getElementById('c');
 const g=cv.getContext('2d');
 const TAU=Math.PI*2;
@@ -34,12 +38,20 @@ const easeOutBack=t=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Ma
 
 /* ---------- size ---------- */
 let W=0,H=0,DPR=1,SX=0,SW=0;
+let ST=0,SB=0,TOPY=46;
+function viewSize(){
+  const r=cv.getBoundingClientRect();
+  let w=Math.round(r.width),h=Math.round(r.height);
+  if(!w||!h){w=window.innerWidth;h=window.innerHeight;}
+  return [w,h];
+}
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2.5);
-  W=window.innerWidth;H=window.innerHeight;
+  [W,H]=viewSize();
   cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
-  cv.style.width=W+'px';cv.style.height=H+'px';
   g.setTransform(DPR,0,0,DPR,0,0);
+  try{const cs=getComputedStyle(document.getElementById('sa'));ST=parseFloat(cs.paddingTop)||0;SB=parseFloat(cs.paddingBottom)||0;}catch(e){}
+  TOPY=Math.max(46,ST+28);
   SW=Math.min(W,H*0.78);SX=(W-SW)/2;
   if(typeof scene!=='undefined'&&scene==='intro')buildIntro();
 }
@@ -1066,7 +1078,7 @@ function layoutWorld(){
   const order=land?[[0,1],[1,1],[2,1],[3,1],[3,0],[2,0],[1,0],[0,0]]:[[0,3],[1,3],[1,2],[0,2],[0,1],[1,1],[1,0],[0,0]];
   wpos=order.map(o=>({x:x0+cw*(o[0]+0.5),y:top+ch*(o[1]+0.5)}));
 }
-const worldBtn=()=>({x:W/2,y:H*0.935,r:Math.min(SW*0.1,H*0.052)});
+const worldBtn=()=>{const r=Math.min(SW*0.1,H*0.052);return {x:W/2,y:Math.min(H*0.935,H-SB-r-8),r};};
 function enterWorld(done){
   layoutWorld();
   scene='world';held=null;particles.length=0;idle=0;
@@ -1226,7 +1238,7 @@ function drawLaunch(){
   if(fa>0){g.fillStyle='rgba(0,0,0,'+fa+')';g.fillRect(0,0,W,H);}
   drawCircleBtn(btnSnd(),muted?'🔇':'🔊');
 }
-const homeBtn=()=>({x:W/2,y:H*0.93,r:Math.min(SW*0.085,H*0.045)});
+const homeBtn=()=>{const r=Math.min(SW*0.085,H*0.045);return {x:W/2,y:Math.min(H*0.93,H-SB-r-8),r};};
 function startHome(){
   scene='home';homeT=0;particles.length=0;fwT=0.6;heroHop=0.8;
   hero=hero||mkCreature(heroStyle,0,0,1,heroStyle);hero.cheer=true;
@@ -1309,8 +1321,8 @@ function resetGame(){
 }
 
 /* ---------- interaction ---------- */
-const btnHome=()=>({x:SX+36,y:46,r:26});
-const btnSnd=()=>({x:SX+SW-36,y:46,r:26});
+const btnHome=()=>({x:SX+36,y:TOPY,r:26});
+const btnSnd=()=>({x:SX+SW-36,y:TOPY,r:26});
 function playBtn(){return {x:W/2,y:H*0.8,r:Math.min(SW*0.17,72)};}
 function nextBtn(){return {x:W/2,y:H*0.87,r:Math.min(SW*0.11,42)};}
 function toggleSound(){muted=!muted;if(muted)hush();else{ac();SFX.tap();}}
@@ -1505,6 +1517,9 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)hush();});
 window.addEventListener('resize',resize);
+if(window.visualViewport)visualViewport.addEventListener('resize',resize);
+window.addEventListener('orientationchange',()=>setTimeout(resize,300));
+window.addEventListener('pageshow',resize);
 ['touchend','click','pointerup','keydown'].forEach(ev=>document.addEventListener(ev,function h(){
   unlockAudio();
   if(AC&&AC.state==='running')document.removeEventListener(ev,h);
@@ -1663,7 +1678,7 @@ function drawPlay(){
   const n=LEVELS.length,sp=22,x0=W/2-(n-1)*sp/2;
   for(let i=0;i<n;i++){
     const done=level>=n||i<level;
-    g.beginPath();g.arc(x0+i*sp,46,7,0,TAU);
+    g.beginPath();g.arc(x0+i*sp,TOPY,7,0,TAU);
     g.fillStyle=done?'#FFCF1F':'#fff';g.fill();
     g.lineWidth=3;g.strokeStyle=(i===level%n&&level<n)?'#46C46A':'#D6DBE8';g.stroke();
   }
@@ -1711,9 +1726,10 @@ function draw(){
   else if(scene==='launch')drawLaunch();
   else if(scene==='home')drawHome();
   g.save();g.font='11px '+FONT;g.textAlign='left';g.textBaseline='alphabetic';
-  g.fillStyle='rgba(120,125,150,0.55)';g.fillText('v'+VERSION,10,H-10);g.restore();
+  g.fillStyle='rgba(120,125,150,0.55)';g.fillText('v'+VERSION,10,H-10-SB);g.restore();
 }
 function frame(ts){
+  if(Math.abs(cv.clientWidth-W)>1||Math.abs(cv.clientHeight-H)>1)resize();
   const dt=Math.min(0.05,(ts-last)/1000||0.016);
   last=ts;t+=dt;
   update(dt);draw();
